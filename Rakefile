@@ -9,7 +9,7 @@ require 'nokogiri'
 require 'pg'
 require 'sequel'
 
-DB = Sequel.connect(ENV.fetch('DATABASE_URL', 'postgres://localhost/whatsinseason'))
+DB = Sequel.connect(ENV.fetch('DATABASE_URL', 'postgres://localhost/seasonable'))
 
 task :setup do
   DB.create_table :items do
@@ -33,7 +33,7 @@ task :default do
 
   def extract(doc)
     doc.xpath('//table[@class="table_dispo"]//tr[not(@class="empty")]').each do |tr|
-      item = {name: tr.xpath('./td[2]').text}
+      item = {name: tr.xpath('./td[2]').text.downcase}
 
       text = tr.xpath('./td[3]').text.strip
       unless text.empty?
