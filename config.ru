@@ -38,6 +38,17 @@ get '/' do
     )
   }
 
+  @not = DB[:items].order(:start_date_month, :start_date_day).where{
+    (
+      (start_date_month > Date.today.month) |
+      Sequel.&({start_date_month: Date.today.month}, start_date_day > Date.today.day)
+    ) &
+    (
+      (start_date_month > limit.month) |
+      Sequel.&({start_date_month: limit.month}, start_date_day > limit.day)
+    )
+  }
+
   erb :index
 end
 
@@ -104,6 +115,27 @@ __END__
   <h2>In season within a week</h2>
 
   <% @in.each_slice(6) do |items| %>
+    <div class="row">
+      <% items.each_with_index do |item,index| %>
+        <% if index % 6 != 0 && index % 3 == 0 %>
+          <div class="clearfix visible-sm"></div>
+        <% elsif index % 6 != 0 && index % 2 == 0 %>
+          <div class="clearfix visible-xs"></div>
+        <% end %>
+        <div class="col-md-2 col-sm-4 col-xs-6" style="margin: 20px 0;">
+          <p class="lead" style="text-align: center;"><%= item[:name].capitalize %><br>
+          in <%= (Date.new(Date.today.year, item[:start_date_month], item[:start_date_day]) - Date.today).to_i %> days</p>
+          <img src="<%= item[:image] %>" width="100%" alt="" class="img-rounded">
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+
+<% if @not.any? %>
+  <h2>Not in season</h2>
+
+  <% @not.each_slice(6) do |items| %>
     <div class="row">
       <% items.each_with_index do |item,index| %>
         <% if index % 6 != 0 && index % 3 == 0 %>
