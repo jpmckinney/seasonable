@@ -17,6 +17,8 @@ GEM
       rack (~> 1.4)
       rack-protection (~> 1.4)
       tilt (>= 1.3, < 3)
+    sinatra-partial (0.4.0)
+      sinatra
     tilt (2.0.1)
 
 PLATFORMS
@@ -29,3 +31,4 @@ DEPENDENCIES
   pg
   sequel
   sinatra
+  sinatra-partial

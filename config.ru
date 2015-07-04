@@ -4,12 +4,17 @@ require 'bundler/setup'
 require 'pg'
 require 'sequel'
 require 'sinatra'
+require 'sinatra/partial'
 require 'tilt/erb'
+
+set :partial_template_engine, :erb
 
 DB = Sequel.connect(ENV.fetch('DATABASE_URL', 'postgres://localhost/seasonable'))
 
 get '/' do
-  today = DB[:items].order(:name).where{
+  limit = Date.today + 7
+
+  items = DB[:items].order(:name).where{
     (
       (start_date_month < Date.today.month) |
       Sequel.&({start_date_month: Date.today.month}, start_date_day <= Date.today.day)
@@ -20,34 +25,20 @@ get '/' do
     )
   }
 
-  limit = Date.today + 7
-
-  @out, @today = today.partition do |item|
+  @out, @today = items.partition do |item|
     item[:end_date_month] < limit.month ||
     item[:end_date_month] == limit.month && item[:end_date_day] <= limit.day
   end
 
-  @in = DB[:items].order(:start_date_month, :start_date_day).where{
-    (
-      (start_date_month > Date.today.month) |
-      Sequel.&({start_date_month: Date.today.month}, start_date_day > Date.today.day)
-    ) &
-    (
-      (start_date_month < limit.month) |
-      Sequel.&({start_date_month: limit.month}, start_date_day <= limit.day)
-    )
+  items = DB[:items].order(:start_date_month, :start_date_day).where{
+    (start_date_month > Date.today.month) |
+    Sequel.&({start_date_month: Date.today.month}, start_date_day > Date.today.day)
   }
 
-  @not = DB[:items].order(:start_date_month, :start_date_day).where{
-    (
-      (start_date_month > Date.today.month) |
-      Sequel.&({start_date_month: Date.today.month}, start_date_day > Date.today.day)
-    ) &
-    (
-      (start_date_month > limit.month) |
-      Sequel.&({start_date_month: limit.month}, start_date_day > limit.day)
-    )
-  }
+  @in, @not = items.partition do |item|
+    item[:start_date_month] < limit.month ||
+    item[:start_date_month] == limit.month && item[:start_date_day] <= limit.day
+  end
 
   erb :index
 end
@@ -74,26 +65,18 @@ __END__
 </html>
 
 @@index
-<% @today.each_slice(6) do |items| %>
-  <div class="row">
-    <% items.each_with_index do |item,index| %>
-      <% if index % 6 != 0 && index % 3 == 0 %>
-        <div class="clearfix visible-sm"></div>
-      <% elsif index % 6 != 0 && index % 2 == 0 %>
-        <div class="clearfix visible-xs"></div>
-      <% end %>
-      <div class="col-md-2 col-sm-4 col-xs-6" style="margin: 20px 0;">
-        <p class="lead" style="text-align: center;"><%= item[:name].capitalize %></p>
-        <img src="<%= item[:image] %>" width="100%" alt="" class="img-rounded">
-      </div>
-    <% end %>
-  </div>
-<% end %>
+<%= partial(:section, locals: {header: nil, collection: @today, suffix: nil}) %>
+<%= partial(:section, locals: {header: 'Out of season within a week', collection: @out, suffix: :ending}) %>
+<%= partial(:section, locals: {header: 'In season within a week', collection: @in, suffix: :starting}) %>
+<%= partial(:section, locals: {header: 'Not in season', collection: @not, suffix: :starting}) %>
 
-<% if @out.any? %>
-  <h2>Out of season within a week</h2>
+@@section
+<% if collection.any? %>
+  <% if header %>
+    <h2><%= header %></h2>
+  <% end %>
 
-  <% @out.each_slice(6) do |items| %>
+  <% collection.each_slice(6) do |items| %>
     <div class="row">
       <% items.each_with_index do |item,index| %>
         <% if index % 6 != 0 && index % 3 == 0 %>
@@ -102,8 +85,12 @@ __END__
           <div class="clearfix visible-xs"></div>
         <% end %>
         <div class="col-md-2 col-sm-4 col-xs-6" style="margin: 20px 0;">
-          <p class="lead" style="text-align: center;"><%= item[:name].capitalize %><br>
-          in <%= (Date.new(Date.today.year, item[:end_date_month], item[:end_date_day]) - Date.today).to_i %> days</p>
+          <p class="lead" style="text-align: center;">
+            <%= item[:name].capitalize %>
+            <% if suffix %>
+              <%= partial(suffix, locals: {item: item}) %>
+            <% end %>
+          </p>
           <img src="<%= item[:image] %>" width="100%" alt="" class="img-rounded">
         </div>
       <% end %>
@@ -111,44 +98,10 @@ __END__
   <% end %>
 <% end %>
 
-<% if @in.any? %>
-  <h2>In season within a week</h2>
+@@ending
+<br>
+in <%= (Date.new(Date.today.year, item[:end_date_month], item[:end_date_day]) - Date.today).to_i %> days
 
-  <% @in.each_slice(6) do |items| %>
-    <div class="row">
-      <% items.each_with_index do |item,index| %>
-        <% if index % 6 != 0 && index % 3 == 0 %>
-          <div class="clearfix visible-sm"></div>
-        <% elsif index % 6 != 0 && index % 2 == 0 %>
-          <div class="clearfix visible-xs"></div>
-        <% end %>
-        <div class="col-md-2 col-sm-4 col-xs-6" style="margin: 20px 0;">
-          <p class="lead" style="text-align: center;"><%= item[:name].capitalize %><br>
-          in <%= (Date.new(Date.today.year, item[:start_date_month], item[:start_date_day]) - Date.today).to_i %> days</p>
-          <img src="<%= item[:image] %>" width="100%" alt="" class="img-rounded">
-        </div>
-      <% end %>
-    </div>
-  <% end %>
-<% end %>
-
-<% if @not.any? %>
-  <h2>Not in season</h2>
-
-  <% @not.each_slice(6) do |items| %>
-    <div class="row">
-      <% items.each_with_index do |item,index| %>
-        <% if index % 6 != 0 && index % 3 == 0 %>
-          <div class="clearfix visible-sm"></div>
-        <% elsif index % 6 != 0 && index % 2 == 0 %>
-          <div class="clearfix visible-xs"></div>
-        <% end %>
-        <div class="col-md-2 col-sm-4 col-xs-6" style="margin: 20px 0;">
-          <p class="lead" style="text-align: center;"><%= item[:name].capitalize %><br>
-          in <%= (Date.new(Date.today.year, item[:start_date_month], item[:start_date_day]) - Date.today).to_i %> days</p>
-          <img src="<%= item[:image] %>" width="100%" alt="" class="img-rounded">
-        </div>
-      <% end %>
-    </div>
-  <% end %>
-<% end %>
+@@starting
+<br>
+in <%= (Date.new(Date.today.year, item[:start_date_month], item[:start_date_day]) - Date.today).to_i %> days
