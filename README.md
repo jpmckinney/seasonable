@@ -14,7 +14,7 @@ Data from [mangezquebec.com](http://www.mangezquebec.com/). Images from mangezqu
 
 ## Deployment
 
-    heroku create
+    heroku apps:create
     heroku config:set SHUTTERSTOCK_CLIENT_ID=...
     heroku config:set SHUTTERSTOCK_CLIENT_SECRET=...
     git push heroku master
